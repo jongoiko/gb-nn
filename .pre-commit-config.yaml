@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pretty6502
+        name: Format 6502/Z80/CP1610/TMS9900/8088 Assembly
+        description: This hook uses the pretty6502 pretty-printer to format assembly code.
+        entry: pretty6502.sh
+        language: script
+        files: \.asm$
