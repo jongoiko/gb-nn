@@ -8,9 +8,11 @@ if [[ ! -d pretty6502 ]]; then
     cd ..
 fi
 
-TMPFILE=$(mktemp --tmpdir=/tmp/)
+for file in "$@"; do
+    TMPFILE=$(mktemp --tmpdir=/tmp/)
 
-./pretty6502/pretty6502 $1 $TMPFILE ${@:2}
-sed -i 's/\x0//g' $TMPFILE
+    ./pretty6502/pretty6502 $file $TMPFILE
+    sed -i 's/\x0//g' $TMPFILE
 
-mv $TMPFILE $1
+    mv $TMPFILE $file
+done

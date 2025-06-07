@@ -45,7 +45,7 @@ OBJS = $(patsubst %.asm,$(OBJDIR)/%.o,$(notdir $(ASMSOURCES_COLLECTED)))
 all: $(BINS)
 
 NEEDED_GRAPHICS = \
-	$(GENBACKGROUNDS)/numbers.2bpp \
+	$(GENBACKGROUNDS)/numbers.tilemap \
 	$(GENBACKGROUNDS)/main_screen.tilemap
 
 # Generate sprites, ensuring the containing directories have been created.
