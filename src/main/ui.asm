@@ -15,11 +15,12 @@ digitsTileMapEnd:
 
 Section "UIVariables", WRAM0
 
-wPredictedDigit:: db
+wPredictedDigit: db
 
 SECTION "UI",   ROM0
 
-DEF     NUMBERS_BASE_TILE EQU 11
+DEF     NUMBERS_BASE_TILE EQU 9
+DEF     NUMBERS_TILEMAP_ADDR EQU $9A00
 
 DisplayMainScreen::
         ld      a, 10
@@ -37,7 +38,7 @@ DisplayMainScreen::
         call    CopyDEbytesFromBCtoHL
 
         ; Display digits below drawing area
-        ld      hl, $99E0
+        ld      hl, NUMBERS_TILEMAP_ADDR
         ld      bc, digitsTileMap
         ld      de, (digitsTileMapEnd - digitsTileMap) / 2
 .copy:
@@ -78,7 +79,7 @@ ShowPredictedDigit::
         ld      c, a
         ld      b, 0
         add     hl, bc
-        ld      bc, $99E0
+        ld      bc, NUMBERS_TILEMAP_ADDR
 
         add     a, c
         ld      c, a
@@ -87,7 +88,7 @@ ShowPredictedDigit::
         ld      b, a
 
         call    WaitForVBlank
-        ld      e, 3
+        ld      e, 2
 .nextRow:
         ld      d, 2
 .nextColumn:
