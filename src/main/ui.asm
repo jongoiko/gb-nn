@@ -5,6 +5,7 @@ SECTION "Tiles", ROM0
 tileData:
 INCBIN  "src/generated/backgrounds/main_screen.2bpp"
 INCBIN  "src/generated/backgrounds/numbers.2bpp"
+INCBIN  "src/generated/backgrounds/pixels.2bpp"
 tileDataEnd:
 
 spriteData:
@@ -22,6 +23,9 @@ Section "UIVariables", WRAM0
 wPredictedDigit: db
 
 SECTION "UI",   ROM0
+
+DEF     BASE_PENCIL_POSITION_X EQU 28
+DEF     BASE_PENCIL_POSITION_Y EQU 8
 
 DEF     NUMBERS_BASE_TILE EQU 9
 DEF     NUMBERS_TILEMAP_ADDR EQU $9A00
@@ -105,10 +109,7 @@ ShowPredictedDigit::
         ld      a, [hl+]
         add     a, NUMBERS_BASE_TILE
         ld      [bc], a
-        inc     c
-        ld      a, b
-        adc     a, 0
-        ld      b, a
+        inc     bc
         dec     d
         jr      nz, .nextColumn
 
@@ -135,13 +136,13 @@ ShowDrawingPencil::
         ld      a, [wPencilYPosition]
         sla     a
         sla     a
-        add     a, 8 + 8
+        add     a, BASE_PENCIL_POSITION_Y + 8
         ld      b, a
 
         ld      a, [wPencilXPosition]
         sla     a
         sla     a
-        add     a, 28 + 8
+        add     a, BASE_PENCIL_POSITION_X + 8
         ld      c, a
 
         call    WaitForVBlank

@@ -22,6 +22,7 @@ EntryPoint:
         call    ClearOAM
 
         call    ResetPencilPosition
+        call    ResetDigitPixels
         call    ResetKeys
 
         ; Turn the LCD on
@@ -58,6 +59,14 @@ MainLoop:
         ld      a, [wCurrentKeys]
         and     a, PADF_DOWN
         call    nz, MovePencilDown
+
+        ld      a, [wCurrentKeys]
+        and     a, PADF_A
+        call    nz, DrawOnPencil
+
+        ld      a, [wCurrentKeys]
+        and     a, PADF_B
+        call    nz, EraseOnPencil
 
         call    ShowDrawingPencil
         jr      MainLoop

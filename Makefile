@@ -47,6 +47,7 @@ all: $(BINS)
 NEEDED_GRAPHICS = \
 	$(GENBACKGROUNDS)/numbers.tilemap \
 	$(GENBACKGROUNDS)/main_screen.tilemap \
+	$(GENBACKGROUNDS)/pixels.2bpp \
 	$(GENSPRITES)/pencil.2bpp \
 
 # Generate sprites, ensuring the containing directories have been created.
