@@ -46,11 +46,12 @@ all: $(BINS)
 
 NEEDED_GRAPHICS = \
 	$(GENBACKGROUNDS)/numbers.tilemap \
-	$(GENBACKGROUNDS)/main_screen.tilemap
+	$(GENBACKGROUNDS)/main_screen.tilemap \
+	$(GENSPRITES)/pencil.2bpp \
 
 # Generate sprites, ensuring the containing directories have been created.
 $(GENSPRITES)/%.2bpp: $(RESSPRITES)/%.png | $(GENSPRITES)
-	$(GFX) -c "#FFFFFF,#cfcfcf,#686868,#000000;" --columns -o $@ $<
+	$(GFX) -c "#FFFFFF,#cbcbcb,#414141,#000000;" --columns -o $@ $<
 
 # Generate background tile set, ensuring the containing directories have been created.
 $(GENBACKGROUNDS)/%.2bpp: $(RESBACKGROUNDS)/%.png | $(GENBACKGROUNDS)

@@ -7,6 +7,10 @@ INCBIN  "src/generated/backgrounds/main_screen.2bpp"
 INCBIN  "src/generated/backgrounds/numbers.2bpp"
 tileDataEnd:
 
+spriteData:
+INCBIN  "src/generated/sprites/pencil.2bpp"
+spriteDataEnd:
+
 mainScreenTileMap: INCBIN "src/generated/backgrounds/main_screen.tilemap"
 mainScreenTileMapEnd:
 
@@ -21,6 +25,7 @@ SECTION "UI",   ROM0
 
 DEF     NUMBERS_BASE_TILE EQU 9
 DEF     NUMBERS_TILEMAP_ADDR EQU $9A00
+DEF     PENCIL_TILE_ID EQU 0
 
 DisplayMainScreen::
         ld      a, 10
@@ -30,6 +35,11 @@ DisplayMainScreen::
         ld      hl, $9000
         ld      bc, tileData
         ld      de, tileDataEnd - tileData
+        call    CopyDEbytesFromBCtoHL
+
+        ld      hl, $8000
+        ld      bc, spriteData
+        ld      de, spriteDataEnd - spriteData
         call    CopyDEbytesFromBCtoHL
 
         ld      hl, $9800
@@ -119,4 +129,29 @@ ShowPredictedDigit::
         dec     e
         jr      nz, .nextRow
 
+        ret
+
+ShowDrawingPencil::
+        ld      a, [wPencilYPosition]
+        sla     a
+        sla     a
+        add     a, 8 + 8
+        ld      b, a
+
+        ld      a, [wPencilXPosition]
+        sla     a
+        sla     a
+        add     a, 28 + 8
+        ld      c, a
+
+        call    WaitForVBlank
+        ld      hl, _OAMRAM
+        ld      a, b
+        ld      [hl+], a
+        ld      a, c
+        ld      [hl+], a
+        ld      a, PENCIL_TILE_ID
+        ld      [hl+], a
+        xor     a, a
+        ld      [hl], a
         ret
