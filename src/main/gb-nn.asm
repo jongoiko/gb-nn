@@ -68,5 +68,9 @@ MainLoop:
         and     a, PADF_B
         call    nz, EraseOnPencil
 
+        ld      a, [wCurrentKeys]
+        and     a, PADF_SELECT
+        call    nz, ClearDrawing
+
         call    ShowDrawingPencil
         jr      MainLoop

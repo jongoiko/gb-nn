@@ -14,6 +14,7 @@ wDigitPixels:: ds DIGIT_IMAGE_SIZE_BYTES
 SECTION "Drawing", ROM0
 
 DEF     DRAWING_TILEMAP_ADDR EQU $9823
+DEF     BLANK_TILE_ID EQU 0
 
 ResetPencilPosition::
         xor     a, a
@@ -159,3 +160,23 @@ UpdateDisplayedDrawing:
 
 DrawingPixelTiles:
         db      78, 82, 86, 90, 79, 83, 87, 91, 76, 80, 84, 88, 77, 81, 85, 89
+
+ClearDrawing::
+        call    ResetDigitPixels
+        ld      a, BLANK_TILE_ID
+        ld      hl, DRAWING_TILEMAP_ADDR
+        ld      d, DIGIT_IMAGE_HEIGHT / 2
+.nextRow:
+        call    WaitForVBlank
+        ld      e, DIGIT_IMAGE_WIDTH / 2
+.nextTile:
+        ld      [hl+], a
+        dec     e
+        jr      nz, .nextTile
+
+        ld      bc, 32 - DIGIT_IMAGE_WIDTH / 2
+        add     hl, bc
+
+        dec     d
+        jr      nz, .nextRow
+        ret
