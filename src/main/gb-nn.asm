@@ -24,6 +24,7 @@ EntryPoint:
         call    ResetPencilPosition
         call    ResetDigitPixels
         call    ResetKeys
+        call    InitializeNeuralNetwork
 
         ; Turn the LCD on
         ld      a, LCDCF_ON  | LCDCF_BGON | LCDCF_OBJON
@@ -71,6 +72,10 @@ MainLoop:
         ld      a, [wCurrentKeys]
         and     a, PADF_SELECT
         call    nz, ClearDrawing
+
+        ld      a, [wCurrentKeys]
+        and     a, PADF_START
+        call    nz, PredictDigit
 
         call    ShowDrawingPencil
         jr      MainLoop
