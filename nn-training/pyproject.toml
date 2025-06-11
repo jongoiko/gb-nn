@@ -1,0 +1,10 @@
+[project]
+name = "nn-training"
+version = "0.1.0"
+description = "Training a small neural network for MNIST classification on a GameBoy"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy<2.0",
+    "tensorflow>=2.14.0",
+]
