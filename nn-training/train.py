@@ -1,14 +1,18 @@
+import math
+import struct
 from pathlib import Path
 from typing import Any
 from typing import Iterator
 
 import numpy as np
 import tensorflow as tf
+import tflite
 
 OPTIMIZER = "adam"
 NUM_EPOCHS = 10
 NUM_REPRESENTATIVE_DATASET_SAMPLES = 100
 MODEL_SAVE_PATH = "model.tflite"
+SERIALIZED_SAVE_PATH = "model.bin"
 
 
 def main() -> None:
@@ -27,6 +31,9 @@ def main() -> None:
     )
     tflite_model_file = Path(MODEL_SAVE_PATH)
     tflite_model_file.write_bytes(quantized_model)
+
+    with open(SERIALIZED_SAVE_PATH, "wb") as f:
+        f.write(serialize_to_binary(MODEL_SAVE_PATH))
 
 
 def get_dataset() -> tuple[
@@ -50,11 +57,6 @@ def train_model(
     model = tf.keras.Sequential(
         [
             tf.keras.layers.InputLayer(input_shape=(28, 28)),
-            tf.keras.layers.Reshape(target_shape=(28, 28, 1)),
-            tf.keras.layers.Conv2D(filters=1, kernel_size=(3, 3), activation="relu"),
-            tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
-            tf.keras.layers.Conv2D(filters=3, kernel_size=(3, 3), activation="relu"),
-            tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(10),
         ]
@@ -83,6 +85,84 @@ def quantize_model(
     converter.inference_input_type = converter.inference_output_type = tf.uint8
     tflite_model = converter.convert()
     return tflite_model
+
+
+def serialize_to_binary(model_path: str) -> bytes:
+    def pack_uint16(x: int) -> bytes:
+        return struct.pack("<h", x)
+
+    def pack_int32(x: int) -> bytes:
+        return struct.pack("<i", x)
+
+    def serialize_tensor_shape(tensor_idx: int) -> bytes:
+        serialized = bytearray()
+        weight_shape = tensor_details[tensor_idx]["shape"]
+        serialized.append(len(weight_shape))
+        for dim in weight_shape:
+            serialized.extend(pack_uint16(dim))
+        return serialized
+
+    def serialize_operator(operator: tflite.Operator) -> bytes:
+        def get_matmul_M(
+            input1_scale: float, input2_scale: float, output_scale: float
+        ) -> tuple[int, int]:
+            M = input1_scale * input2_scale / output_scale
+            M_0, exponent = math.frexp(M)
+            n = -exponent
+            M_0_fixed_point = int(round(M_0 * (1 << 15)))
+            return M_0_fixed_point, n
+
+        serialized = bytearray()
+        opcode = model.OperatorCodes(operator.OpcodeIndex()).BuiltinCode()  # type: ignore
+        if opcode == tflite.BuiltinOperator.FULLY_CONNECTED:
+            serialized.append(opcode)
+            input_tensor, weight, bias = [operator.Inputs(i) for i in range(3)]
+            output = operator.Outputs(0)
+            serialized.extend(serialize_tensor_shape(weight))
+            (
+                (input_scale, input_z),
+                (weight_scale, weight_z),
+                (output_scale, output_z),
+            ) = [
+                tensor_details[tensor]["quantization"]
+                for tensor in [input_tensor, weight, output]
+            ]
+            serialized.append(np.array(input_z).astype(np.uint8))
+            serialized.append(np.array(weight_z).astype(np.uint8))
+            M_0, n = get_matmul_M(input_scale, weight_scale, output_scale)
+            serialized.extend(pack_uint16(M_0))
+            serialized.append(n)
+            serialized.extend(interpreter.get_tensor(weight).ravel())
+            for elem in interpreter.get_tensor(bias):
+                serialized.extend(pack_int32(elem))
+        return serialized
+
+    with open(model_path, "rb") as f:
+        buf = f.read()
+        model = tflite.Model.GetRootAsModel(buf, 0)
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    tensor_details = interpreter.get_tensor_details()
+
+    assert model.SubgraphsLength() == 1
+
+    graph = model.Subgraphs(0)
+    assert isinstance(graph, tflite.SubGraph)
+
+    assert graph.InputsLength() == 1
+    assert graph.OutputsLength() == 1
+
+    serialized = bytearray()
+    num_operators = 0
+    for operator_idx in range(graph.OperatorsLength()):
+        operator = graph.Operators(operator_idx)
+        assert isinstance(operator, tflite.Operator)
+        serialized_operator = serialize_operator(operator)
+        if len(serialized_operator) > 0:
+            num_operators += 1
+        serialized.extend(serialized_operator)
+    serialized.insert(0, num_operators)
+
+    return serialized
 
 
 if __name__ == "__main__":
