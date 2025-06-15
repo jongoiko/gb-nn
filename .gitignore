@@ -1,4 +1,5 @@
 pretty6502/
 src/generated/
 dist/
-*.o
+obj/
+*.bin
