@@ -24,7 +24,6 @@ EntryPoint:
         call    ResetPencilPosition
         call    ResetDigitPixels
         call    ResetKeys
-        call    InitializeNeuralNetwork
 
         ; Turn the LCD on
         ld      a, LCDCF_ON  | LCDCF_BGON | LCDCF_OBJON

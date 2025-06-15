@@ -11,3 +11,19 @@ CopyDEbytesFromBCtoHL::
         or      a, d
         jr      nz, CopyDEbytesFromBCtoHL
         ret
+
+LoadHLtoAddressAtBC::
+        ld      a, h
+        ld      [bc], a
+        inc     bc
+        ld      a, l
+        ld      [bc], a
+        ret
+
+LoadAddressAtBCtoHL::
+        ld      a, [bc]
+        ld      h, a
+        inc     bc
+        ld      a, [bc]
+        ld      l, a
+        ret

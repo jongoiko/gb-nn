@@ -99,10 +99,10 @@ def quantize_model(
 
 def serialize_to_binary(model_path: str) -> bytes:
     def pack_uint16(x: int) -> bytes:
-        return struct.pack("<h", x)
+        return struct.pack(">h", x)
 
     def pack_int32(x: int) -> bytes:
-        return struct.pack("<i", x)
+        return struct.pack(">i", x)
 
     def serialize_tensor_shape(tensor_idx: int) -> bytes:
         serialized = bytearray()
@@ -139,6 +139,7 @@ def serialize_to_binary(model_path: str) -> bytes:
             ]
             serialized.append(np.array(input_z).astype(np.uint8))
             serialized.append(np.array(weight_z).astype(np.uint8))
+            serialized.append(np.array(output_z).astype(np.uint8))
             M_0, n = get_matmul_M(input_scale, weight_scale, output_scale)
             serialized.extend(pack_uint16(M_0))
             serialized.append(n)

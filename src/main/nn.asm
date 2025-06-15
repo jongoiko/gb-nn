@@ -1,24 +1,371 @@
 INCLUDE "src/main/utils/hardware.inc"
+INCLUDE "src/main/utils/constants.inc"
 
 SECTION "NeuralNetworkVariables", WRAM0
 
-wDigit: db
+DEF     MAX_ACTIVATION_SIZE_BYTES EQU 1024
+DEF     DRAWN_PIXEL_BYTE_VALUE EQU 255
+
+DEF     OPCODE_FULLY_CONNECTED EQU 9
+
+wActivationIdx: db
+wCurrentLayerAddr: dw
+wActivationsA: ds MAX_ACTIVATION_SIZE_BYTES
+wActivationsB: ds MAX_ACTIVATION_SIZE_BYTES
+
+wFullyConnectedInputSize: dw
+wFullyConnectedOutputSize: dw
+wFullyConnectedInputZ: db
+wFullyConnectedWeightZ: db
+wFullyConnectedOutputZ: db
+wFullyConnectedInputSizeVar: dw
+wFullyConnectedOutputSizeVar: dw
+wFullyConnectedOutputComponentVar: dl
 
 SECTION "NeuralNetwork", ROM0
 
-InitializeNeuralNetwork::
+nn:
+INCBIN  "nn-training/model.bin"
+nnEnd:
+
+InitializeNeuralNetwork:
         xor     a, a
-        ld      [wDigit], a
+        ld      [wActivationIdx], a
+        ld      hl, nn
+        inc     hl
+        ld      bc, wCurrentLayerAddr
+        call    LoadHLtoAddressAtBC
         ret
 
 PredictDigit::
-        ld      a, [wDigit]
-        call    ShowPredictedDigit
-        ld      a, [wDigit]
-        cp      a, 9
-        jr      c, .nextDigit
-        ld      a, -1
+        call    InitializeNeuralNetwork
+        call    LoadImagePixelsIntoInputActivations
+
+        ; Read number of layers
+        ld      a, [nn]
+.nextLayer:
+        push    af
+        call    RunNextLayer
+
+        ld      a, [wActivationIdx]
+        xor     a, 1
+        ld      [wActivationIdx], a
+
+        pop     af
+        dec     a
+        jr      nz, .nextLayer
+
+        ; The activations now contain 10 signed bytes with the logits for each
+        ; class. We take the max and show the predicted digit
+        ld      a, [wActivationIdx]
+        xor     a, 1
+        ld      [wActivationIdx], a
+        call    LoadActivationsAddressToBCandHL
+
+        ; E holds the greatest logit and D holds the argmax
+        ld      d, 10
+        ld      e, -128
+
+        ld      c, 0
 .nextDigit:
-        inc     a
-        ld      [wDigit], a
+        ld      a, [hl]
+        add     a, 128
+        ld      b, a
+        ld      a, e
+        add     a, 128
+
+        cp      a, b
+        jr      nc, .notLarger
+
+        ld      d, c
+        ld      a, [hl]
+        ld      e, a
+.notLarger:
+        inc     hl
+        inc     c
+        ld      a, c
+        cp      a, 10
+        jr      nz, .nextDigit
+
+        ld      a, d
+        call    ShowPredictedDigit
+        ret
+
+; Store the input activation address to BC and the output activation address to
+; HL
+LoadActivationsAddressToBCandHL:
+        ld      a, [wActivationIdx]
+        jr      nz, .activationBufferB
+        ld      bc, wActivationsB
+        ld      hl, wActivationsA
+        ret
+.activationBufferB:
+        ld      bc, wActivationsA
+        ld      hl, wActivationsB
+        ret
+
+LoadImagePixelsIntoInputActivations:
+        call    LoadActivationsAddressToBCandHL
+        ld      h, b
+        ld      l, c
+        ld      de, DIGIT_IMAGE_SIZE_BYTES
+        ld      bc, wDigitPixels
+.next:
+        ld      a, [bc]
+        or      a, a
+        jr      z, .zeroPixel
+        ld      a, DRAWN_PIXEL_BYTE_VALUE
+.zeroPixel:
+        ld      [hl+], a
+
+        inc     bc
+        dec     de
+        ld      a, d
+        or      a, e
+        jr      nz, .next
+        ret
+
+
+RunNextLayer:
+        ld      bc, wCurrentLayerAddr
+        call    LoadAddressAtBCtoHL
+        ; Read opcode
+        ld      a, [hl]
+        cp      a, OPCODE_FULLY_CONNECTED
+        call    z, RunFullyConnectedLayer
+        ret
+
+RunFullyConnectedLayer:
+        push    hl
+        ld      b, h
+        ld      c, l
+        inc     bc
+        inc     bc
+        call    LoadAddressAtBCtoHL
+        ld      bc, wFullyConnectedOutputSize
+        call    LoadHLtoAddressAtBC
+        ld      bc, wFullyConnectedOutputSizeVar
+        call    LoadHLtoAddressAtBC
+        pop     hl
+
+        ld      bc, 4
+        add     hl, bc
+        push    hl
+        ld      b, h
+        ld      c, l
+        call    LoadAddressAtBCtoHL
+        ld      bc, wFullyConnectedInputSize
+        call    LoadHLtoAddressAtBC
+        pop     hl
+        inc     hl
+        inc     hl
+        ld      a, [hl]
+        ld      [wFullyConnectedInputZ], a
+        inc     hl
+        ld      a, [hl]
+        ld      [wFullyConnectedWeightZ], a
+        inc     hl
+        ld      a, [hl]
+        ld      [wFullyConnectedOutputZ], a
+        inc     hl
+        inc     hl
+        inc     hl
+        inc     hl
+        ld      d, h
+        ld      e, l
+
+        call    LoadActivationsAddressToBCandHL
+.nextOutputComponent:
+        ; Forward pass: BC points to the input tensor, HL points to the output
+        ; component, DE points to the layer's weight matrix row
+        push    bc
+        push    hl
+        call    .calculateDotProduct
+        call    .addBias
+        call    .requantize
+
+        ; Add zero-point of output tensor (Z_y)
+        pop     hl
+        ld      a,   [wFullyConnectedOutputZ]
+        add     a, [hl]
+        ld      [hl], a
+
+        pop     bc
+
+        push    bc
+        inc     hl
+        push    hl
+        ld      bc, wFullyConnectedOutputSizeVar
+        call    LoadAddressAtBCtoHL
+        ld      a, l
+        sub     a, 1
+        ld      l, a
+        ld      a, h
+        sbc     a, 0
+        ld      h, a
+        ld      bc, wFullyConnectedOutputSizeVar
+        call    LoadHLtoAddressAtBC
+        or      a, l
+        pop     hl
+        pop     bc
+
+        jr      nz, .nextOutputComponent
+
+        ret
+
+.calculateDotProduct:
+        ; BC points to the input tensor, HL points to the output component, DE
+        ; points to the layer's weight matrix row
+        push    bc
+        push    hl
+        ld      bc, wFullyConnectedInputSize
+        call    LoadAddressAtBCtoHL
+        ld      bc, wFullyConnectedInputSizeVar
+        call    LoadHLtoAddressAtBC
+        pop     hl
+        pop     bc
+
+        xor     a, a
+        ld      [wFullyConnectedOutputComponentVar], a
+        ld      [wFullyConnectedOutputComponentVar + 1], a
+        ld      [wFullyConnectedOutputComponentVar + 2], a
+        ld      [wFullyConnectedOutputComponentVar + 3], a
+.nextElement:
+        push    hl
+        push    de
+        push    bc
+
+        ld      a, [bc]
+        ld      h, a
+
+        ld      a, [de]
+        ld      e, a
+
+        call    MultiplyHandEintoHLNN
+
+        ld      a, [wFullyConnectedOutputComponentVar + 3]
+        add     a, l
+        ld      [wFullyConnectedOutputComponentVar + 3], a
+        ld      a, [wFullyConnectedOutputComponentVar + 2]
+        adc     a, h
+        ld      [wFullyConnectedOutputComponentVar + 2], a
+        ld      a, [wFullyConnectedOutputComponentVar + 1]
+        adc     a, 0
+        ld      [wFullyConnectedOutputComponentVar + 1], a
+        ld      a, [wFullyConnectedOutputComponentVar]
+        adc     a, 0
+        ld      [wFullyConnectedOutputComponentVar], a
+
+        pop     bc
+        pop     de
+        pop     hl
+        inc     bc
+        inc     de
+
+        ld      a, [wFullyConnectedInputSizeVar + 1]
+        sub     a, 1
+        ld      [wFullyConnectedInputSizeVar + 1], a
+        ld      a, [wFullyConnectedInputSizeVar]
+        sbc     a, 0
+        ld      [wFullyConnectedInputSizeVar], a
+
+        jr      nz, .nextElement
+        ld      a, [wFullyConnectedInputSizeVar + 1]
+        or      a, a
+        jr      nz, .nextElement
+
+        ret
+
+.addBias:
+        ld      bc, wCurrentLayerAddr
+        call    LoadAddressAtBCtoHL
+        ld      bc, 12
+        add     hl, bc
+        push    de
+        push    hl
+
+        ld      a, [wFullyConnectedInputSize + 1]
+        ld      e, a
+        ld      a, [wFullyConnectedInputSize]
+        ld      d, a
+
+        ld      a, [wFullyConnectedOutputSize + 1]
+        ld      c, a
+        ld      a, [wFullyConnectedOutputSize]
+        ld      b, a
+
+        call    MultiplyBCandDEintoDEHL
+        ; We assume that the total size of the weight matrix fits in 16 bits
+        ld      b, h
+        ld      c, l
+        pop     hl
+        add     hl, bc
+
+        ; Take bias element corresponding to current output component:
+        ; HL <- HL + 4 * (10 - [wFullyConnectedOutputSize])
+        ld      a, [wFullyConnectedOutputSizeVar + 1]
+        cpl
+        add     a, 1
+        ld      c, a
+        ld      a, [wFullyConnectedOutputSizeVar]
+        cpl
+        adc     a, 0
+        ld      b, a
+
+        ld      a, c
+        add     a, 10
+        ld      c, a
+        ld      a, b
+        adc     a, 0
+        ld      b, a
+
+        ; Multiply by 4: two shifts
+        sla     c
+        push    af
+        ld      a, b
+        sla     a
+        ld      d, a
+        pop     af
+        ld      a, d
+        adc     a, 0
+        ld      b, a
+
+        sla     c
+        push    af
+        ld      a, b
+        sla     a
+        ld      d, a
+        pop     af
+        ld      a, d
+        adc     a, 0
+        ld      b, a
+
+        add     hl, bc
+
+        ; HL now points to the bias element to add
+        ld      bc, 3
+        add     hl, bc
+
+        ld      a, [wFullyConnectedOutputComponentVar + 3]
+        add     a, [hl]
+        dec     hl
+        ld      [wFullyConnectedOutputComponentVar + 3], a
+        ld      a, [wFullyConnectedOutputComponentVar + 2]
+        adc     a, [hl]
+        dec     hl
+        ld      [wFullyConnectedOutputComponentVar + 2], a
+        ld      a, [wFullyConnectedOutputComponentVar + 1]
+        adc     a, [hl]
+        dec     hl
+        ld      [wFullyConnectedOutputComponentVar + 1], a
+        ld      a, [wFullyConnectedOutputComponentVar]
+        adc     a, [hl]
+        dec     hl
+        ld      [wFullyConnectedOutputComponentVar], a
+
+        pop     de
+        ret
+
+.requantize:
+        ; Multiply dot product + bias by M = 2^(-n) M_0
         ret

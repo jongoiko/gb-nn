@@ -1,10 +1,7 @@
 INCLUDE "src/main/utils/hardware.inc"
+INCLUDE "src/main/utils/constants.inc"
 
 Section "DrawingVariables", WRAM0
-
-DEF     DIGIT_IMAGE_HEIGHT EQU 28
-DEF     DIGIT_IMAGE_WIDTH EQU 28
-DEF     DIGIT_IMAGE_SIZE_BYTES EQU DIGIT_IMAGE_WIDTH * DIGIT_IMAGE_HEIGHT
 
 wPencilXPosition:: db
 wPencilYPosition:: db
