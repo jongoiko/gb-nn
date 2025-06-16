@@ -1,4 +1,5 @@
 import math
+import random
 import struct
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ SERIALIZED_SAVE_PATH = "model.bin"
 
 
 def main() -> None:
+    set_random_seeds()
+
     (train_images, train_labels), (test_images, test_labels) = get_dataset()
     model = train_model(train_images, train_labels, test_images, test_labels)
     model.summary()
@@ -34,6 +37,13 @@ def main() -> None:
 
     with open(SERIALIZED_SAVE_PATH, "wb") as f:
         f.write(serialize_to_binary(MODEL_SAVE_PATH))
+
+
+def set_random_seeds() -> None:
+    SEED = 42
+    random.seed(SEED)
+    np.random.seed(SEED)
+    tf.random.set_seed(SEED)
 
 
 def get_dataset() -> tuple[
