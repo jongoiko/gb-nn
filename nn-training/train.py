@@ -130,15 +130,13 @@ def serialize_to_binary(model_path: str) -> bytes:
             output = operator.Outputs(0)
             serialized.extend(serialize_tensor_shape(weight))
             (
-                (input_scale, input_z),
-                (weight_scale, weight_z),
+                (input_scale, _),
+                (weight_scale, _),
                 (output_scale, output_z),
             ) = [
                 tensor_details[tensor]["quantization"]
                 for tensor in [input_tensor, weight, output]
             ]
-            serialized.append(np.array(input_z).astype(np.uint8))
-            serialized.append(np.array(weight_z).astype(np.uint8))
             serialized.append(np.array(output_z).astype(np.uint8))
             M_0, n = get_matmul_M(input_scale, weight_scale, output_scale)
             serialized.extend(pack_uint16(M_0))

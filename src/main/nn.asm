@@ -15,8 +15,6 @@ wActivationsB: ds MAX_ACTIVATION_SIZE_BYTES
 
 wFullyConnectedInputSize: dw
 wFullyConnectedOutputSize: dw
-wFullyConnectedInputZ: db
-wFullyConnectedWeightZ: db
 wFullyConnectedOutputZ: db
 wFullyConnectedInputSizeVar: dw
 wFullyConnectedOutputSizeVar: dw
@@ -160,12 +158,6 @@ RunFullyConnectedLayer:
         inc     hl
         inc     hl
         ld      a, [hl]
-        ld      [wFullyConnectedInputZ], a
-        inc     hl
-        ld      a, [hl]
-        ld      [wFullyConnectedWeightZ], a
-        inc     hl
-        ld      a, [hl]
         ld      [wFullyConnectedOutputZ], a
         inc     hl
         inc     hl
@@ -279,7 +271,7 @@ RunFullyConnectedLayer:
 .addBias:
         ld      bc, wCurrentLayerAddr
         call    LoadAddressAtBCtoHL
-        ld      bc, 12
+        ld      bc, 10
         add     hl, bc
         push    de
         push    hl
