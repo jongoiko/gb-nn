@@ -407,7 +407,7 @@ RunFullyConnectedLayer:
         add     a, 15
         ld      b, a
 .rightShift:
-        ld      a, [Math32RegC + 3]
+        ld      a, [Math32RegC + 7]
         bit     7, a
         scf
         jr      nz, .noSignExtend

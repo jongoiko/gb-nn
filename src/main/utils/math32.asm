@@ -1,3 +1,9 @@
+; WARNING: This file was originally written by Humberto Yeverino Jr., but some
+; routines have been modified to make mul32 work properly.
+; In particular, the register C has been expanded to 8 bytes to be able to hold
+; products of 4 byte integers. Also, mul32 has been modified to properly handle
+; negative operands in two's complement.
+
 ;New 32-bit Math routines for the z80
 ;by Humberto Yeverino Jr.
 ;August 22, 1998
@@ -158,8 +164,10 @@ SECTION "Math32Vars", WRAM0
 
 Math32RegA:: dl
 Math32RegB:: dl
-Math32RegC:: dl
+Math32RegC:: ds 8
 StringSpace: ds 11
+
+multiplicationBShiftCarry: db
 
 SECTION "Math32Utils", ROM0
 
@@ -262,6 +270,16 @@ add32Loop:
         inc     de              ;1
         dec     b
         jr      nz, add32Loop   ;2
+        ; Second loop (remaining 4 bytes)
+        ld      b,4             ;2
+        ld      a, [multiplicationBShiftCarry]
+add32Loop2:
+        adc     a,[hl]          ;1
+        ld      [hl],a          ;1
+        inc     hl              ;1
+        ld      a, 0
+        dec     b
+        jr      nz, add32Loop2
         ret                     ;1
 
 add32C: ;Total 8 bytes
@@ -343,8 +361,23 @@ sr32B:  ;5 110	Required for div32
         jr      sr32
 
 sr32C::
-        ld      hl,Math32RegC+3
-        jr      sr32
+        ld      hl, Math32RegC + 7
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        dec     hl
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        dec     hl              ;1 6
+        rr      [hl]            ;2 15
+        ret
 
 sl32A:  ;15 98	[hl]:=[hl]*2
         ld      hl,Math32RegA
@@ -385,8 +418,48 @@ ClearMath32RegC:                ;Required for mul32
         ld      hl,Math32RegC
         jr      ClearReg
 
+; Negate C-byte register pointed to by HL. Destroys HL and C
+negateRegister:
+        ld      a, [hl]
+        cpl
+        add     a, 1
+        ld      [hl+], a
+        dec     c
+.loop:
+        ld      a, [hl]
+        cpl
+        adc     a, 0
+        ld      [hl+], a
+        dec     c
+        jr      nz, .loop
+        ret
+
 mul32::
-        call    ClearMath32RegC
+        ld      hl, Math32RegC
+        ld      b, 8
+        call    ClearRegLoop
+        xor     a, a
+        ld      [multiplicationBShiftCarry], a
+        ; Negate operands if they are negative
+        ld      a, [Math32RegA + 3]
+        ld      b, a
+        bit     7, a
+        jr      z, .operandANonNegative
+        ; Negate Math32RegA
+        ld      hl, Math32RegA
+        ld      c, 4
+        call    negateRegister
+.operandANonNegative:
+        ld      a, [Math32RegB + 3]
+        bit     7, a
+        push    bc
+        push    af
+        jr      z, .operandBNonNegative
+        ; Negate Math32RegB
+        ld      hl, Math32RegB
+        ld      c, 4
+        call    negateRegister
+.operandBNonNegative:
         ld      b,32
 mul32Loop:
         push    bc
@@ -395,9 +468,22 @@ mul32Loop:
         call    add32CB         ;3	Math32RegC=Math32RegC+Math32RegB
 mul32NoAdd:
         call    sl32B           ;3	Math32RegB=Math32RegB*2
+        jr      nc, .noShiftCarry
+        ld      a, 1
+        ld      [multiplicationBShiftCarry], a
+.noShiftCarry:
         pop     bc
         dec     b
         jr      nz, mul32Loop
+        ; Negate the product if exactly one operand was negative
+        pop     af
+        pop     bc
+        xor     a, b
+        bit     7, a
+        ret     z
+        ld      hl, Math32RegC
+        ld      c, 8
+        call    negateRegister
         ret
 
 div32:  ;Total 38 bytes	Required for IntString32
