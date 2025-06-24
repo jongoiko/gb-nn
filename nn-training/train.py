@@ -92,7 +92,7 @@ def quantize_model(
     converter.optimizations = {tf.lite.Optimize.DEFAULT}
     converter.representative_dataset = representative_dataset
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = converter.inference_output_type = tf.uint8
+    converter.inference_input_type = converter.inference_output_type = tf.int8
     tflite_model = converter.convert()
     return tflite_model
 
@@ -130,7 +130,7 @@ def serialize_to_binary(model_path: str) -> bytes:
             output = operator.Outputs(0)
             serialized.extend(serialize_tensor_shape(weight))
             (
-                (input_scale, _),
+                (input_scale, input_z),
                 (weight_scale, _),
                 (output_scale, output_z),
             ) = [
@@ -140,10 +140,13 @@ def serialize_to_binary(model_path: str) -> bytes:
             serialized.append(np.array(output_z).astype(np.uint8))
             M_0, n = get_matmul_M(input_scale, weight_scale, output_scale)
             serialized.extend(pack_uint16(M_0))
-            serialized.append(n)
+            serialized.append(np.array(n).astype(np.uint8))
             serialized.extend(interpreter.get_tensor(weight).ravel())
-            for elem in interpreter.get_tensor(bias):
-                serialized.extend(pack_int32(elem))
+            # Pre-calculate q_bias:
+            #       q_bias = q_b - Z_x * q_w
+            for i, elem in enumerate(interpreter.get_tensor(bias)):
+                q_bias = elem - input_z * interpreter.get_tensor(weight)[i].sum()
+                serialized.extend(pack_int32(q_bias))
         return serialized
 
     with open(model_path, "rb") as f:

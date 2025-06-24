@@ -4,7 +4,9 @@ INCLUDE "src/main/utils/constants.inc"
 SECTION "NeuralNetworkVariables", WRAM0
 
 DEF     MAX_ACTIVATION_SIZE_BYTES EQU 1024
-DEF     DRAWN_PIXEL_BYTE_VALUE EQU 255
+
+DEF     DRAWN_PIXEL_BYTE_VALUE EQU $7F
+DEF     NOT_DRAWN_PIXEL_BYTE_VALUE EQU $80
 
 DEF     OPCODE_FULLY_CONNECTED EQU 9
 
@@ -16,6 +18,8 @@ wActivationsB: ds MAX_ACTIVATION_SIZE_BYTES
 wFullyConnectedInputSize: dw
 wFullyConnectedOutputSize: dw
 wFullyConnectedOutputZ: db
+wFullyConnectedM0: dw
+wFullyConnectedMExponent: db
 wFullyConnectedInputSizeVar: dw
 wFullyConnectedOutputSizeVar: dw
 wFullyConnectedOutputComponentVar: dl
@@ -113,7 +117,10 @@ LoadImagePixelsIntoInputActivations:
         or      a, a
         jr      z, .zeroPixel
         ld      a, DRAWN_PIXEL_BYTE_VALUE
+        jr      .writePixel
 .zeroPixel:
+        ld      a, NOT_DRAWN_PIXEL_BYTE_VALUE
+.writePixel:
         ld      [hl+], a
 
         inc     bc
@@ -157,12 +164,22 @@ RunFullyConnectedLayer:
         pop     hl
         inc     hl
         inc     hl
-        ld      a, [hl]
+        ld      a, [hl+]
         ld      [wFullyConnectedOutputZ], a
+
+        push    hl
+        ld      b, h
+        ld      c, l
+        call    LoadAddressAtBCtoHL
+        ld      bc, wFullyConnectedM0
+        call    LoadHLtoAddressAtBC
+        pop     hl
         inc     hl
         inc     hl
-        inc     hl
-        inc     hl
+
+        ld      a, [hl+]
+        ld      [wFullyConnectedMExponent], a
+
         ld      d, h
         ld      e, l
 
@@ -175,11 +192,12 @@ RunFullyConnectedLayer:
         call    .calculateDotProduct
         call    .addBias
         call    .requantize
-
+        ; The requantized result is now stored in A
+        ld      b, a
         ; Add zero-point of output tensor (Z_y)
         pop     hl
         ld      a,   [wFullyConnectedOutputZ]
-        add     a, [hl]
+        add     a, b
         ld      [hl], a
 
         pop     bc
@@ -235,6 +253,11 @@ RunFullyConnectedLayer:
 
         call    MultiplyHandEintoHLNN
 
+        ld      b, 0
+        bit     7, h
+        jr      z, .nonNegativeProduct
+        ld      b, $FF
+.nonNegativeProduct:
         ld      a, [wFullyConnectedOutputComponentVar + 3]
         add     a, l
         ld      [wFullyConnectedOutputComponentVar + 3], a
@@ -242,10 +265,10 @@ RunFullyConnectedLayer:
         adc     a, h
         ld      [wFullyConnectedOutputComponentVar + 2], a
         ld      a, [wFullyConnectedOutputComponentVar + 1]
-        adc     a, 0
+        adc     a, b
         ld      [wFullyConnectedOutputComponentVar + 1], a
         ld      a, [wFullyConnectedOutputComponentVar]
-        adc     a, 0
+        adc     a, b
         ld      [wFullyConnectedOutputComponentVar], a
 
         pop     bc
@@ -360,4 +383,39 @@ RunFullyConnectedLayer:
 
 .requantize:
         ; Multiply dot product + bias by M = 2^(-n) M_0
+        push    de
+        ; First, multiply the 32-bit result by M_0
+        ; Load the dot product + bias result to Math32RegA
+        ld      a, [wFullyConnectedOutputComponentVar]
+        ld      [Math32RegA + 3], a
+        ld      a, [wFullyConnectedOutputComponentVar + 1]
+        ld      [Math32RegA + 2], a
+        ld      a, [wFullyConnectedOutputComponentVar + 2]
+        ld      [Math32RegA + 1], a
+        ld      a, [wFullyConnectedOutputComponentVar + 3]
+        ld      [Math32RegA], a
+        ; Load M_0 to Math32RegB
+        ld      bc, wFullyConnectedM0
+        call    LoadAddressAtBCtoHL
+        call    ld16B
+        scf
+        ccf
+        ; Perform multiplication
+        call    mul32
+        ; Right shift result by n + 15 positions
+        ld      a, [wFullyConnectedMExponent]
+        add     a, 15
+        ld      b, a
+.rightShift:
+        ld      a, [Math32RegC + 3]
+        bit     7, a
+        scf
+        jr      nz, .noSignExtend
+        ccf
+.noSignExtend:
+        call    sr32C
+        dec     b
+        jr      nz, .rightShift
+        ld      a, [Math32RegC] ; Re-quantized result stored in A
+        pop     de
         ret

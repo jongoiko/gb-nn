@@ -33,8 +33,26 @@ MultiplyHandEintoHL::
         add     hl, de
         ret
 
-; Routine from https://tutorials.eeems.ca/Z80ASM/part4.htm
+; Routine adapted from https://tutorials.eeems.ca/Z80ASM/part4.htm
+; Modified to handle signed operands.
 MultiplyHandEintoHLNN::
+        ld      a, h
+        xor     a, e
+        push    af
+        bit     7, h
+        jr      z, .hNonNegative
+        ld      a, h
+        cpl
+        inc     a
+        ld      h, a
+.hNonNegative
+        bit     7, e
+        jr      z, .eNonNegative
+        ld      a, e
+        cpl
+        inc     a
+        ld      e, a
+.eNonNegative
         ld      d, 0
         ld      l, d
         ld      b, 8
@@ -45,6 +63,18 @@ MultiplyHandEintoHLNN::
 .skip:
         dec     b
         jr      nz, .loop
+        pop     af
+        bit     7, a
+        ret     z
+        ; Exactly one of H or E were negative: negate the unsigned product
+        ld      a, l
+        cpl
+        add     a, 1
+        ld      l, a
+        ld      a, h
+        cpl
+        adc     a, 0
+        ld      h, a
         ret
 
 ; Routine from https://tutorials.eeems.ca/Z80ASM/part4.htm
