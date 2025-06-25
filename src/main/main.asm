@@ -22,6 +22,7 @@ EntryPoint:
         call    ResetPencilPosition
         call    ResetDigitPixels
         call    ResetKeys
+        call    ResetNeuralNetwork
         call    SetupInterrupts
 
         ; Turn the LCD on

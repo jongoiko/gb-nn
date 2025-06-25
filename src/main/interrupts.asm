@@ -12,7 +12,16 @@ SetupInterrupts::
         ret
 
 VBlankInterruptHandler:
+        ld      a, [wNeuralNetworkForwardPassRunning]
+        or      a, a
+        jr      nz, .forwardPassRunning
+        ld      a, %11100100
+        ld      [rBGP], a
         call    HandleInputs
+        jr      .restoreRegisters
+.forwardPassRunning:
+        call    VBlankDuringNeuralNetworkForwardPass
+.restoreRegisters:
         pop     hl
         pop     de
         pop     bc

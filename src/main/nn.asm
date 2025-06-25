@@ -8,7 +8,13 @@ DEF     MAX_ACTIVATION_SIZE_BYTES EQU 1024
 DEF     DRAWN_PIXEL_BYTE_VALUE EQU $7F
 DEF     NOT_DRAWN_PIXEL_BYTE_VALUE EQU $80
 
+DEF     FORWARD_PASS_FLICKER_EVERY_N_FRAMES EQU 6
+
 DEF     OPCODE_FULLY_CONNECTED EQU 9
+
+wNeuralNetworkForwardPassRunning:: db
+wForwardPassFrameCounter: db
+wForwardPassFlickerPalette: db
 
 wActivationIdx: db
 wCurrentLayerAddr: dw
@@ -31,17 +37,47 @@ nn:
 INCBIN  "nn-training/model.bin"
 nnEnd:
 
+ResetNeuralNetwork::
+        xor     a, a
+        ld      [wNeuralNetworkForwardPassRunning], a
+        ld      [wForwardPassFrameCounter], a
+        ret
+
 InitializeNeuralNetwork:
         xor     a, a
         ld      [wActivationIdx], a
+        ld      a, %11100100
+        ld      [wForwardPassFlickerPalette], a
         ld      hl, nn
         inc     hl
         ld      bc, wCurrentLayerAddr
         call    LoadHLtoAddressAtBC
         ret
 
+VBlankDuringNeuralNetworkForwardPass::
+        ld      a, [wForwardPassFrameCounter]
+        inc     a
+        cp      a, FORWARD_PASS_FLICKER_EVERY_N_FRAMES
+        jr      nz, .updateCounter
+        ld      a, [wForwardPassFlickerPalette]
+        ld      [rBGP], a
+        rrca
+        rrca
+        ld      [wForwardPassFlickerPalette], a
+        xor     a, a
+.updateCounter:
+        ld      [wForwardPassFrameCounter], a
+        ret
+
 PredictDigit::
         call    InitializeNeuralNetwork
+
+        ; Interrupts are enabled to flicker the screen while the NN forward pass
+        ; is running
+        ld      a, 1
+        ld      [wNeuralNetworkForwardPassRunning], a
+        ei
+
         call    LoadImagePixelsIntoInputActivations
 
         ; Read number of layers
@@ -92,6 +128,10 @@ PredictDigit::
 
         ld      a, d
         call    ShowPredictedDigit
+
+        xor     a, a
+        ld      [wNeuralNetworkForwardPassRunning], a
+
         ret
 
 ; Store the input activation address to BC and the output activation address to
