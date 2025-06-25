@@ -6,8 +6,6 @@ SECTION "Header", ROM0[$100]
 
         ds      $150 - @, 0     ; Make room for the header
 
-DEF     WAIT_EVERY_N_FRAMES EQU 4
-
 EntryPoint:
         ; Shut down audio circuitry
         xor     a, a
@@ -24,6 +22,7 @@ EntryPoint:
         call    ResetPencilPosition
         call    ResetDigitPixels
         call    ResetKeys
+        call    SetupInterrupts
 
         ; Turn the LCD on
         ld      a, LCDCF_ON  | LCDCF_BGON | LCDCF_OBJON
@@ -34,14 +33,12 @@ EntryPoint:
         ld      [rBGP], a
         ld      [rOBP0], a
 
-MainLoop:
-        ld      d, WAIT_EVERY_N_FRAMES
-.wait
-        call    WaitForNotVBlank
-        call    WaitForVBlank
-        dec     d
-        jr      nz, .wait
+.loop:
+        halt
+        jr      .loop
 
+HandleInputs::
+        ; This routine is called on each VBlank interrupt
         call    UpdateKeys
 
         ld      a, [wCurrentKeys]
@@ -77,4 +74,4 @@ MainLoop:
         call    nz, PredictDigit
 
         call    ShowDrawingPencil
-        jr      MainLoop
+        ret

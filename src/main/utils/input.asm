@@ -4,13 +4,18 @@ SECTION "InputVariables", WRAM0
 
 wCurrentKeys:: db
 wNewKeys: db
+wFramesToNextInput: db
 
 SECTION "InputUtils", ROM0
+
+DEF     NUM_FRAMES_BETWEEN_INPUTS EQU 4
 
 ResetKeys::
         xor     a, a
         ld      [wCurrentKeys], a
         ld      [wNewKeys], a
+        ld      [wFramesToNextInput], a
+        ret
 
 UpdateKeys::
         ; Poll half the controller
@@ -36,6 +41,30 @@ UpdateKeys::
         ld      [wNewKeys], a
         ld      a, b
         ld      [wCurrentKeys], a
+
+        ; If any key was already held down, wait for NUM_FRAMES_BETWEEN_INPUTS
+        ; frames
+        or      a, a
+        jr      z, .noKeysPressed
+
+        ld      a, [wFramesToNextInput]
+        or      a, a
+        jr      z, .nextInput
+
+        dec     a
+        ld      [wFramesToNextInput], a
+        xor     a, a
+        ld      [wCurrentKeys], a
+        ret
+
+.nextInput:
+        ld      a, NUM_FRAMES_BETWEEN_INPUTS
+        ld      [wFramesToNextInput], a
+        ret
+
+.noKeysPressed:
+        xor     a, a
+        ld      [wFramesToNextInput], a
         ret
 
 .onenibble
