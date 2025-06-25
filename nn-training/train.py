@@ -8,6 +8,7 @@ from typing import Iterator
 import numpy as np
 import tensorflow as tf
 import tflite
+from sklearn.model_selection import train_test_split
 
 OPTIMIZER = "adam"
 NUM_EPOCHS = 10
@@ -15,12 +16,14 @@ NUM_REPRESENTATIVE_DATASET_SAMPLES = 100
 MODEL_SAVE_PATH = "model.tflite"
 SERIALIZED_SAVE_PATH = "model.bin"
 
+SEED = 42
+NUM_VAL_SAMPLES = 10000
+
 
 def main() -> None:
     set_random_seeds()
-
-    (train_images, train_labels), (test_images, test_labels) = get_dataset()
-    model = train_model(train_images, train_labels, test_images, test_labels)
+    (train_images, train_labels), (val_images, val_labels), _ = get_dataset()
+    model = train_model(train_images, train_labels, val_images, val_labels)
     model.summary()
 
     def representative_data_gen() -> Iterator:
@@ -40,14 +43,15 @@ def main() -> None:
 
 
 def set_random_seeds() -> None:
-    SEED = 42
     random.seed(SEED)
     np.random.seed(SEED)
     tf.random.set_seed(SEED)
 
 
 def get_dataset() -> tuple[
-    tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]
+    tuple[np.ndarray, np.ndarray],
+    tuple[np.ndarray, np.ndarray],
+    tuple[np.ndarray, np.ndarray],
 ]:
     (train_images, train_labels), (test_images, test_labels) = (
         tf.keras.datasets.mnist.load_data()
@@ -55,7 +59,20 @@ def get_dataset() -> tuple[
     # Binarize image pixels
     train_images = (train_images.astype(np.float32) / 255.0 >= 0.5).astype(np.float32)
     test_images = (test_images.astype(np.float32) / 255.0 >= 0.5).astype(np.float32)
-    return (train_images, train_labels), (test_images, test_labels)
+    # Split training set into training and validation
+    train_images, val_images, train_labels, val_labels = train_test_split(
+        train_images,
+        train_labels,
+        test_size=NUM_VAL_SAMPLES,
+        random_state=SEED,
+        shuffle=True,
+        stratify=train_labels,
+    )
+    return (
+        (train_images, train_labels),
+        (val_images, val_labels),
+        (test_images, test_labels),
+    )
 
 
 def train_model(
