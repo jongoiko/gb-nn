@@ -23,6 +23,7 @@ wFullyConnectedMExponent: db
 wFullyConnectedInputSizeVar: dw
 wFullyConnectedOutputSizeVar: dw
 wFullyConnectedOutputComponentVar: dl
+wFullyConnectedNextLayerAddrVar: dw
 
 SECTION "NeuralNetwork", ROM0
 
@@ -221,6 +222,12 @@ RunFullyConnectedLayer:
 
         jr      nz, .nextOutputComponent
 
+        ; Save address of next layer
+        ld      bc, wFullyConnectedNextLayerAddrVar
+        call    LoadAddressAtBCtoHL
+        ld      bc, wCurrentLayerAddr
+        call    LoadHLtoAddressAtBC
+
         ret
 
 .calculateDotProduct:
@@ -358,9 +365,15 @@ RunFullyConnectedLayer:
         add     hl, bc
 
         ; HL now points to the bias element to add
-        ld      bc, 3
+        ld      bc, 4
         add     hl, bc
 
+        ; Since the next layer starts right after the bias vector, we
+        ; pre-calculate the next layer's address
+        ld      bc, wFullyConnectedNextLayerAddrVar
+        call    LoadHLtoAddressAtBC
+
+        dec     hl
         ld      a, [wFullyConnectedOutputComponentVar + 3]
         add     a, [hl]
         dec     hl
