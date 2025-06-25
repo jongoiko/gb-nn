@@ -27,3 +27,7 @@ repos:
     rev: v3.14.0
     hooks:
       - id: reorder-python-imports
+  - repo: https://github.com/JohnnyMorganz/StyLua
+    rev: v2.1.0
+    hooks:
+      - id: stylua-github

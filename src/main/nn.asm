@@ -15,6 +15,7 @@ DEF     OPCODE_FULLY_CONNECTED EQU 9
 wNeuralNetworkForwardPassRunning:: db
 wForwardPassFrameCounter: db
 wForwardPassFlickerPalette: db
+wPredictedDigit: db
 
 wActivationIdx: db
 wCurrentLayerAddr: dw
@@ -127,6 +128,7 @@ PredictDigit::
         jr      nz, .nextDigit
 
         ld      a, d
+        ld      [wPredictedDigit], a
         call    ShowPredictedDigit
 
         xor     a, a
