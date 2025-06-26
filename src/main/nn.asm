@@ -370,7 +370,7 @@ RunFullyConnectedLayer:
         add     hl, bc
 
         ; Take bias element corresponding to current output component:
-        ; HL <- HL + 4 * (10 - [wFullyConnectedOutputSize])
+        ; HL <- HL + 4 * ([wFullyConnectedOutputSize] - [wFullyConnectedOutputSizeVar])
         ld      a, [wFullyConnectedOutputSizeVar + 1]
         cpl
         add     a, 1
@@ -380,11 +380,11 @@ RunFullyConnectedLayer:
         adc     a, 0
         ld      b, a
 
-        ld      a, c
-        add     a, 10
+        ld      a, [wFullyConnectedOutputSize + 1]
+        add     a, c
         ld      c, a
-        ld      a, b
-        adc     a, 0
+        ld      a, [wFullyConnectedOutputSize]
+        adc     a, b
         ld      b, a
 
         ; Multiply by 4: two shifts
