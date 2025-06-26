@@ -164,6 +164,22 @@ def serialize_to_binary(model_path: str) -> bytes:
             M_0_fixed_point = int(round(M_0 * (1 << 15)))
             return M_0_fixed_point, n
 
+        def has_relu(operator: tflite.Operator) -> bool:
+            assert (
+                operator.BuiltinOptionsType()
+                == tflite.BuiltinOptions.FullyConnectedOptions
+            )
+            options = operator.BuiltinOptions()
+            assert options is not None
+            options_table = tflite.FullyConnectedOptions()
+            options_table.Init(options.Bytes, options.Pos)
+            activation = options_table.FusedActivationFunction()
+            assert (
+                activation == tflite.ActivationFunctionType.RELU
+                or activation == tflite.ActivationFunctionType.NONE
+            )
+            return activation == tflite.ActivationFunctionType.RELU
+
         serialized = bytearray()
         opcode = model.OperatorCodes(operator.OpcodeIndex()).BuiltinCode()  # type: ignore
         if opcode == tflite.BuiltinOperator.FULLY_CONNECTED:
@@ -183,6 +199,7 @@ def serialize_to_binary(model_path: str) -> bytes:
             M_0, n = get_matmul_M(input_scale, weight_scale, output_scale)
             serialized.extend(pack_uint16(M_0))
             serialized.append(np.array(n).astype(np.uint8))
+            serialized.append(np.array(has_relu(operator)).astype(np.uint8))
             serialized.extend(interpreter.get_tensor(weight).ravel())
             # Pre-calculate q_bias:
             #       q_bias = q_b - Z_x * q_w

@@ -27,6 +27,7 @@ wFullyConnectedOutputSize: dw
 wFullyConnectedOutputZ: db
 wFullyConnectedM0: dw
 wFullyConnectedMExponent: db
+wFullyConnectedHasReLUActivation: db
 wFullyConnectedInputSizeVar: dw
 wFullyConnectedOutputSizeVar: dw
 wFullyConnectedOutputComponentVar: dl
@@ -224,6 +225,9 @@ RunFullyConnectedLayer:
         ld      a, [hl+]
         ld      [wFullyConnectedMExponent], a
 
+        ld      a, [hl+]
+        ld      [wFullyConnectedHasReLUActivation], a
+
         ld      d, h
         ld      e, l
 
@@ -236,17 +240,16 @@ RunFullyConnectedLayer:
         call    .calculateDotProduct
         call    .addBias
         call    .requantize
-        ; The requantized result is now stored in A
+        ; Now the result is stored in Math32RegC
+        call    .applyReLU
+        ; Add zero point of the layer output (Z_y)
+        ld      a, [Math32RegC]
         ld      b, a
-        ; Add zero-point of output tensor (Z_y)
-        pop     hl
-        ld      a,   [wFullyConnectedOutputZ]
+        ld      a, [wFullyConnectedOutputZ]
         add     a, b
+        pop     hl
         ld      [hl], a
 
-        pop     bc
-
-        push    bc
         inc     hl
         push    hl
         ld      bc, wFullyConnectedOutputSizeVar
@@ -344,7 +347,7 @@ RunFullyConnectedLayer:
 .addBias:
         ld      bc, wCurrentLayerAddr
         call    LoadAddressAtBCtoHL
-        ld      bc, 10
+        ld      bc, 11
         add     hl, bc
         push    de
         push    hl
@@ -472,6 +475,16 @@ RunFullyConnectedLayer:
         call    sr32C
         dec     b
         jr      nz, .rightShift
-        ld      a, [Math32RegC] ; Re-quantized result stored in A
         pop     de
+        ret
+
+.applyReLU:
+        ld      a, [wFullyConnectedHasReLUActivation]
+        or      a, a
+        ret     z
+        ld      a, [Math32RegC + 3]
+        bit     7, a
+        ret     z
+        xor     a, a
+        ld      [Math32RegC], a
         ret
