@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 
 OPTIMIZER = "adam"
 NUM_EPOCHS = 10
-NUM_REPRESENTATIVE_DATASET_SAMPLES = 100
+NUM_REPRESENTATIVE_DATASET_SAMPLES = 1000
 MODEL_SAVE_PATH = "model.tflite"
 SERIALIZED_SAVE_PATH = "model.bin"
 
@@ -27,7 +27,9 @@ def main() -> None:
 
     def representative_data_gen() -> Iterator:
         for input_value in (
-            tf.data.Dataset.from_tensor_slices(train_images).batch(1).take(100)
+            tf.data.Dataset.from_tensor_slices(train_images)
+            .batch(1)
+            .take(NUM_REPRESENTATIVE_DATASET_SAMPLES)
         ):
             yield [input_value]
 
