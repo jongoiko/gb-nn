@@ -140,6 +140,7 @@ PredictDigit::
 ; HL
 LoadActivationsAddressToBCandHL:
         ld      a, [wActivationIdx]
+        or      a, a
         jr      nz, .activationBufferB
         ld      bc, wActivationsB
         ld      hl, wActivationsA
