@@ -98,6 +98,7 @@ def train_model(
             tf.keras.layers.InputLayer(input_shape=(28, 28)),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(14, activation="relu"),
+            tf.keras.layers.Dense(30, activation="relu"),
             tf.keras.layers.Dense(10),
         ]
     )
