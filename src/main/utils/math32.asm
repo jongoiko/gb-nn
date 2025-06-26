@@ -171,42 +171,6 @@ multiplicationBShiftCarry: db
 
 SECTION "Math32Utils", ROM0
 
-ldir:
-        ld      a, [hl+]
-        ld      [de], a
-        inc     de
-
-        dec     bc
-        ld      a, c
-        or      a, b
-        jr      nz, ldir
-        ret
-
-ld8A:
-        call    ClearMath32RegA
-        ld      [Math32RegA],a
-        ret
-
-ld8B:   ;Required for InString32
-        call    ClearMath32RegB
-        ld      [Math32RegB],a
-        ret
-
-ld8C:
-        call    ClearMath32RegC
-        ld      [Math32RegC],a
-        ret
-
-ld16A:
-        ld      a, l
-        ld      [Math32RegA], a
-        ld      a, h
-        ld      [Math32RegA+1], a
-        xor     a, a
-        ld      [Math32RegA+2], a
-        ld      [Math32RegA+3], a
-        ret
-
 ld16B::
         ld      a, l
         ld      [Math32RegB], a
@@ -217,47 +181,6 @@ ld16B::
         ld      [Math32RegB+3], a
         ret
 
-ld16C:
-        ld      a, l
-        ld      [Math32RegC], a
-        ld      a, h
-        ld      [Math32RegC+1], a
-        xor     a, a
-        ld      [Math32RegC+2], a
-        ld      [Math32RegC+3], a
-        ret
-
-;63 bytes for all ld32 routins
-ld32AB:
-        ld      hl,Math32RegB
-ld32A:  ;Total 9 bytes
-        ld      de,Math32RegA   ;3
-ld32:
-        ld      bc,4            ;3
-        call    ldir
-        ret                     ;1
-
-ld32AC: ;Required for IntString32
-        ld      hl,Math32RegC
-        jr      ld32A
-
-ld32B:
-        ld      de,Math32RegB
-        jr      ld32
-
-ld32BA:
-        ld      hl,Math32RegA
-        jr      ld32B
-
-ld32BC:
-        ld      hl,Math32RegC
-        jr      ld32B
-
-
-add32AB:                        ;Total 16 bytes
-        ld      de,Math32RegB   ;3
-add32A:
-        ld      hl,Math32RegA   ;3
 add32:
         or      a
 adc32:
@@ -290,60 +213,6 @@ add32CB:                        ;Required for mul32
         ld      de,Math32RegB   ;3
         jr      add32C
 
-
-sub32AB:                        ;Required for div32
-        ;IN  = Math32RegA, Math32RegB
-        ;OUT = Math32RegA=Math32RegA-Math32RegB
-        ld      hl,Math32RegB   ;3
-sub32A:
-        ld      de,Math32RegA   ;3
-sub32:  ;Total 10 bytes
-        or      a
-sbc32:
-        ld      b,4             ;2
-sub32Loop:
-        ld      a,[de]          ;1
-        sbc     a,[hl]          ;1
-        ld      [de],a          ;1
-        inc     de              ;1
-        inc     hl              ;1
-        dec     b
-        jr      nz, sub32Loop   ;2
-        ret                     ;1
-
-cp32AB: ;Required for div32
-        ld      hl,Math32RegB+3
-cp32A:
-        ld      de,Math32RegA+3
-cp32:
-        ld      b,4
-cp32Loop:
-        ld      a,[de]
-        cp      [hl]            ;[hl]-[de] c-hl<hl, nc-hl>=de, z-hl=de, nz-hl!=de
-        ret     nz              ;[hl]!=[de] then done
-        dec     hl
-        dec     de              ;try next bytes
-        dec     b
-        jr      nz, cp32Loop
-cp32Done:
-        ret
-
-cp32AC:
-        ld      hl,Math32RegC+3
-        jr      cp32A
-
-cp32B:
-        ld      de,Math32RegB+3
-        jr      cp32
-
-cp32BA:
-        ld      hl,Math32RegA+3
-        jr      cp32B
-
-cp32BC: ;Required for div32
-        ld      hl,Math32RegC+3
-        jr      cp32B
-
 sr32A:  ;15 98 Required for mul32
         ld      hl,Math32RegA+3 ;3 10
 sr32:   ;12 88
@@ -355,10 +224,6 @@ sr32:   ;12 88
         dec     hl              ;1 6
         rr      [hl]            ;2 15
         ret                     ;1 10
-
-sr32B:  ;5 110	Required for div32
-        ld      hl,Math32RegB+3
-        jr      sr32
 
 sr32C::
         ld      hl, Math32RegC + 7
@@ -395,28 +260,12 @@ sl32B:  ;5 110	Required for mul32 and div32
         ld      hl,Math32RegB   ;3 10
         jr      sl32            ;2 12
 
-sl32C:  ;Required for div32
-        ld      hl,Math32RegC
-        jr      sl32
-
-ClearMath32RegA:                ;Total 11 bytes
-        ld      hl,Math32RegA   ;3
-ClearReg:                       ;Total 8 bytes
-        ld      b,4             ;2
 ClearRegLoop:
         ld      [hl],0          ;2
         inc     hl              ;1
         dec     b
         jr      nz, ClearRegLoop;2
         ret                     ;1
-
-ClearMath32RegB:
-        ld      hl,Math32RegB
-        jr      ClearReg
-
-ClearMath32RegC:                ;Required for mul32
-        ld      hl,Math32RegC
-        jr      ClearReg
 
 ; Negate C-byte register pointed to by HL. Destroys HL and C
 negateRegister:
@@ -485,60 +334,3 @@ mul32NoAdd:
         ld      c, 8
         call    negateRegister
         ret
-
-div32:  ;Total 38 bytes	Required for IntString32
-        call    ClearMath32RegC
-        call    cp32BC
-        ret     z               ;check if b=0
-        ld      c,1             ;2
-        or      a               ;1	carry=0
-div32Loop:
-        ld      a,[Math32RegB+3];3 13
-        bit     7,a             ;2 8	Test Most sig bit of Math32RegB
-        jr      nz,div32Loop2   ;2 7	if it's 1 goto div32Ready else
-        inc     c               ;1 4	inc c
-        call    sl32B           ;3 127	shift Math32RegB left
-        jr      div32Loop       ;2 12	loop time=171
-div32Loop2:
-        call    cp32AB          ;3
-        jr      c,div32NoSub    ;2	if Math32RegA<Math32RegB goto div32NoSub else
-        call    sub32AB         ;3	Math32RegA=Math32RegA-Math32RegB
-div32NoSub:
-        ccf                     ;1
-        call    sl32C           ;3	left shift a 1 into Math32RegC
-        call    sr32B           ;3	Math32RegB=Math32RegB/2			;1
-        dec     c
-        jr      nz,div32Loop2   ;2
-        call    sl32B           ;Restore Math32RegB
-        ret                     ;1
-
-IntString32:
-        ld      a,10
-        call    ld8B            ;load 10 into Math32RegB
-        ld      b,a             ;number of digits
-        ld      hl,StringSpace+10
-        ld      [hl],0          ;for 0 terminated string
-IntString32Loop:
-        push    bc              ;save b
-        dec     hl              ;previous byte
-        push    hl              ;save hl	BC:HL
-        call    div32           ;divide Math32RegA by 10
-        ld      a,[Math32RegA]  ;put answer in a
-        add     a,48            ;add offset
-        call    ld32AC          ;load Math32RegC into Math32RegA
-        pop     hl
-        pop     bc              ;get pointer & b
-        ld      [hl],a          ;load char into pointer
-        dec     b
-        jr      nz, IntString32Loop
-        ;get rid of preceding zeros
-        ld      a,48
-        ld      b,9             ;do at most 9 moves
-IntStrnLoop2:
-        cp      [hl]
-        ret     nz
-        inc     hl
-        dec     b
-        jr      nz, IntStrnLoop2
-        ret
-
