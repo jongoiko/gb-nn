@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import Iterator
 
 import numpy as np
+import skimage
 import tensorflow as tf
 import tflite
 from sklearn.model_selection import train_test_split
 
-OPTIMIZER = "adam"
-NUM_EPOCHS = 10
+NUM_EPOCHS = 100
 NUM_REPRESENTATIVE_DATASET_SAMPLES = 1000
 MODEL_SAVE_PATH = "model.tflite"
 SERIALIZED_SAVE_PATH = "model.bin"
@@ -62,6 +62,15 @@ def get_dataset() -> tuple[
     # Binarize image pixels
     train_images = (train_images.astype(np.float32) / 255.0 >= 0.5).astype(np.float32)
     test_images = (test_images.astype(np.float32) / 255.0 >= 0.5).astype(np.float32)
+
+    # Skeletonize to have consistent (1-pixel) stroke width
+    def skeletonize(image: np.ndarray) -> np.ndarray:
+        binary_image = image > 0
+        skeleton = skimage.morphology.skeletonize(binary_image)
+        return (1.0 * skeleton).astype(image.dtype)
+
+    train_images = np.stack(list(map(skeletonize, train_images)))
+    test_images = np.stack(list(map(skeletonize, test_images)))
     # Split training set into training and validation
     train_images, val_images, train_labels, val_labels = train_test_split(
         train_images,
@@ -88,11 +97,13 @@ def train_model(
         [
             tf.keras.layers.InputLayer(input_shape=(28, 28)),
             tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(14, activation="relu"),
             tf.keras.layers.Dense(10),
         ]
     )
+    optimizer = tf.keras.optimizers.AdamW()
     model.compile(
-        optimizer=OPTIMIZER,
+        optimizer=optimizer,
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )
