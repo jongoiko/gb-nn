@@ -2,7 +2,6 @@ import math
 import random
 import struct
 from pathlib import Path
-from typing import Any
 from typing import Iterator
 
 import numpy as np
@@ -37,6 +36,8 @@ def main() -> None:
     )
     tflite_model_file = Path(MODEL_SAVE_PATH)
     tflite_model_file.write_bytes(quantized_model)
+    val_accuracy = evaluate_quantized_accuracy(MODEL_SAVE_PATH, val_images, val_labels)
+    print(f"Post-quantization validation accuracy: {val_accuracy * 100}%")
 
     with open(SERIALIZED_SAVE_PATH, "wb") as f:
         f.write(serialize_to_binary(MODEL_SAVE_PATH))
@@ -104,7 +105,7 @@ def train_model(
 
 def quantize_model(
     model: tf.keras.Model, representative_dataset: tf.lite.RepresentativeDataset
-) -> Any:
+) -> bytes:
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = {tf.lite.Optimize.DEFAULT}
     converter.representative_dataset = representative_dataset
@@ -112,6 +113,30 @@ def quantize_model(
     converter.inference_input_type = converter.inference_output_type = tf.int8
     tflite_model = converter.convert()
     return tflite_model
+
+
+def evaluate_quantized_accuracy(
+    tflite_model_path: str, val_images: np.ndarray, val_labels: np.ndarray
+) -> float:
+    interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()[0]
+    output_details = interpreter.get_output_details()[0]
+
+    correct_predictions = 0
+    for image, label in zip(val_images, val_labels):
+        if input_details["dtype"] == np.int8:
+            input_scale, input_zero_point = input_details["quantization"]
+            image = image / input_scale + input_zero_point
+        image = np.expand_dims(image, axis=0).astype(input_details["dtype"])
+        interpreter.set_tensor(input_details["index"], image)
+        interpreter.invoke()
+        output = interpreter.get_tensor(output_details["index"])[0]
+        prediction = output.argmax()
+        if prediction == label:
+            correct_predictions += 1
+    return correct_predictions / val_images.shape[0]
 
 
 def serialize_to_binary(model_path: str) -> bytes:
