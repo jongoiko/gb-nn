@@ -10,7 +10,8 @@ import tensorflow as tf
 import tflite
 from sklearn.model_selection import train_test_split
 
-NUM_EPOCHS = 100
+NUM_EPOCHS = 50
+LEARNING_RATE = 5e-4
 NUM_REPRESENTATIVE_DATASET_SAMPLES = 1000
 MODEL_SAVE_PATH = "model.tflite"
 SERIALIZED_SAVE_PATH = "model.bin"
@@ -102,7 +103,7 @@ def train_model(
             tf.keras.layers.Dense(10),
         ]
     )
-    optimizer = tf.keras.optimizers.AdamW()
+    optimizer = tf.keras.optimizers.AdamW(learning_rate=LEARNING_RATE)
     model.compile(
         optimizer=optimizer,
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
