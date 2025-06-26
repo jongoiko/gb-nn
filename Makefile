@@ -23,6 +23,7 @@ FIX := $(RGBDS)rgbfix
 
 # Tool flags
 FIXFLAGS := -v -p 0xFF
+ASMFLAGS := -Wall -Wextra
 
 # https://stackoverflow.com/a/18258352
 # Make does not offer a recursive wild card function, so here's one:
@@ -84,7 +85,7 @@ ASMSOURCES_DIRS = $(patsubst %,%%.asm,\
 # "prepare" step has ran and the graphics are already generated.
 define object-from-asm
 $(OBJDIR)/%.o: $1 | $(OBJDIR) $(NEEDED_GRAPHICS)
-	$$(ASM) -o $$@ $$<
+	$$(ASM) -o $$@ $(ASMFLAGS) $$<
 endef
 
 # Run the macro for each directory listed in ASMSOURCES_DIRS, thereby
