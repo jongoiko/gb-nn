@@ -13,8 +13,10 @@ from sklearn.model_selection import train_test_split
 NUM_EPOCHS = 50
 LEARNING_RATE = 5e-4
 NUM_REPRESENTATIVE_DATASET_SAMPLES = 1000
+
 MODEL_SAVE_PATH = "model.tflite"
 SERIALIZED_SAVE_PATH = "model.bin"
+TEST_SET_TXT_PATH = "test_set.txt"
 
 SEED = 42
 NUM_VAL_SAMPLES = 10000
@@ -22,7 +24,12 @@ NUM_VAL_SAMPLES = 10000
 
 def main() -> None:
     set_random_seeds()
-    (train_images, train_labels), (val_images, val_labels), _ = get_dataset()
+    (
+        (train_images, train_labels),
+        (val_images, val_labels),
+        (test_images, test_labels),
+    ) = get_dataset()
+
     model = train_model(train_images, train_labels, val_images, val_labels)
     model.summary()
 
@@ -44,6 +51,15 @@ def main() -> None:
 
     with open(SERIALIZED_SAVE_PATH, "wb") as f:
         f.write(serialize_to_binary(MODEL_SAVE_PATH))
+
+    # Save the test set to a .txt file to be read from the mGBA script
+    text = ""
+    for image, label in zip(test_images, test_labels):
+        pixels_text = "".join(str(int(pixel)) for pixel in image.ravel())
+        assert len(pixels_text) == 784
+        text += f"{pixels_text}{label}\n"
+    with open(TEST_SET_TXT_PATH, "w") as fd:
+        fd.write(text)
 
 
 def set_random_seeds() -> None:

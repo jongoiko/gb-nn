@@ -1,4 +1,4 @@
-local VALIDATION_IMAGES_PATH <const> = "nn-training/val_images.txt"
+local TEST_SET_PATH <const> = "nn-training/test_set.txt"
 local ROM_SYMBOLS_PATH <const> = "dist/gb-nn.sym"
 
 local IMAGE_PIXELS_RAM_SYMBOL_NAME <const> = "wDigitPixels"
@@ -6,10 +6,9 @@ local FORWARD_PASS_RUNNING_RAM_SYMBOL_NAME <const> = "wNeuralNetworkForwardPassR
 local PREDICTED_DIGIT_RAM_SYMBOL_NAME <const> = "wPredictedDigit"
 
 function main()
-	local valImagesFile = io.open(VALIDATION_IMAGES_PATH, "r")
-	if valImagesFile == nil then
-		console:error("The file with the validation image data (" .. VALIDATION_IMAGES_PATH .. ") could not be opened.")
-		console:error("Make sure the file exists (run nn-training/export_validation_images.py) and is readable.")
+	local testImagesFile = io.open(TEST_SET_PATH, "r")
+	if testImagesFile == nil then
+		console:error("The file with the test image data (" .. TEST_SET_PATH .. ") could not be opened.")
 		return
 	end
 	local romSymbolsFile = io.open(ROM_SYMBOLS_PATH, "r")
@@ -20,7 +19,7 @@ function main()
 	local symbols = readROMSymbols(romSymbolsFile)
 	io.close(romSymbolsFile)
 	console:log("Starting evaluation.")
-	local lines = valImagesFile:lines()
+	local lines = testImagesFile:lines()
 	local totalImagesCount = 0
 	local correctImagesCount = 0
 	emu:reset()
@@ -36,7 +35,7 @@ function main()
 			correctImagesCount = correctImagesCount + 1
 		end
 	end
-	io.close(valImagesFile)
+	io.close(testImagesFile)
 	local accuracyPercentage = 100 * correctImagesCount / totalImagesCount
 	console:log("Evaluation finished. Accuracy: " .. accuracyPercentage .. "%")
 end
