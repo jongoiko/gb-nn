@@ -66,7 +66,7 @@ Once we have trained a NN that obtains a sufficient validation accuracy, we woul
 Ideally, we would like to measure the accuracy of the model as it will be deployed, i.e. _running on the Game Boy itself_.
 
 Since it is not feasible to manually draw and classify all 10,000 test set images on a Game Boy, this repository contains a Lua script for the [mGBA](https://mgba.io/) emulator that automates this process.
-To run the script (`get_test_set_accuracy_mgba.lua`), the following two files need to be present:
+To run the script (`get_test_accuracy_mgba.lua`), the following two files need to be present:
 
 - `dist/gb-nn.sym`, the ROM's symbol file;
 - `nn-training/test_set.txt`, the preprocessed test set saved as a text file.
